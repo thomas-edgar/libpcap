@@ -1348,6 +1348,24 @@ AC_SUBST(DYEXT)
 AC_SUBST(MAN_FILE_FORMATS)
 AC_SUBST(MAN_MISC_INFO)
 
+dnl check for serial sniffing support
+AC_MSG_CHECKING(for Serial sniffing support)
+case "$host_os" in
+linux*)
+	AC_DEFINE([PCAP_SUPPORT_SERIAL],1,[target host supports Serial sniffing])
+	SERIAL_SRC="pcap-serial-linux.c"
+	AC_MSG_RESULT(yes)
+	AC_CHECK_HEADERS(termios.h)
+	AC_CHECK_HEADERS(pthread.h)
+	LIBS="-lpthread $LIBS"
+	;;
+*)
+	AC_MSG_RESULT(no)
+	;;
+esac
+AC_SUBST(PCAP_SUPPORT_SERIAL)
+AC_SUBST(SERIAL_SRC)
+
 dnl check for USB sniffing support
 AC_MSG_CHECKING(for USB sniffing support)
 case "$host_os" in
