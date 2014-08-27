@@ -823,6 +823,62 @@ pcap_open_offline_common(char *ebuf, size_t size)
 	return (p);
 }
 
+/*
+ * Must configure a serial port to use it.  Due to this the pcap_open_live will
+ * not activate the interface for serial; only this call will.
+ */
+
+int
+pcap_configure_serial(pcap_t *p, int baud, int databits, int stopbits, int parity)
+{
+        /* Check input ranges for validity and set handle parameters to termios.h values for use */
+        switch (baud) {
+            case 300:
+            case 600:
+            case 1200:
+            case 2400:
+            case 4800:
+            case 9600:
+            case 19200:
+            case 38400:
+                break;
+            default: /* Did not find a valid baud rate */
+                return PCAP_ERROR;
+        }
+        switch (databits) {
+            case 8:
+            case 7:
+            case 6:
+            case 5:
+                break;
+            default: /* Did not find a valid databits value */
+                return PCAP_ERROR;
+        }
+        switch (stopbits) {
+            case 1:
+            case 2:
+                break;
+            default: /* Did not find a valid stopbits */
+                return PCAP_ERROR;
+        }
+        switch (parity) {
+            case 0:
+            case 1:
+            case 2:
+                break; // even
+            default: /* Did not find a valid parity  */
+                return PCAP_ERROR;
+        }
+
+        p->opt.baud = baud;
+        p->opt.databits = databits;
+        p->opt.stopbits = stopbits;
+        p->opt.parity = parity;
+
+        return 1;
+}
+
+
 int
 pcap_dispatch(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 {
@@ -1224,6 +1280,7 @@ static struct dlt_choice dlt_choices[] = {
 	DLT_CHOICE(DLT_PROFIBUS_DL, "PROFIBUS data link layer"),
 	DLT_CHOICE(DLT_PKTAP, "Apple DLT_PKTAP"),
 	DLT_CHOICE(DLT_EPON, "Ethernet with 802.3 Clause 65 EPON preamble"),
+        DLT_CHOICE(DLT_SERIAL, "Serial"),
 	DLT_CHOICE_SENTINEL
 };
 
