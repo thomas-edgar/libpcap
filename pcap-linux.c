@@ -240,6 +240,10 @@
 #include <linux/ethtool.h>
 #endif
 
+#ifdef PCAP_SUPPORT_SERIAL
+#include "pcap-serial-linux.h"
+#endif
+
 #ifndef HAVE_SOCKLEN_T
 typedef int		socklen_t;
 #endif
@@ -402,6 +406,11 @@ pcap_t *
 pcap_create_interface(const char *device, char *ebuf)
 {
 	pcap_t *handle;
+#ifdef PCAP_SUPPORT_SERIAL
+	if (strstr(device, "tty")) {
+		return serial_create(device, ebuf);
+	}
+#endif
 
 	handle = pcap_create_common(device, ebuf, sizeof (struct pcap_linux));
 	if (handle == NULL)
@@ -2315,7 +2324,13 @@ pcap_platform_finddevs(pcap_if_t **alldevsp, char *errbuf)
 		if (scan_proc_net_dev(alldevsp, errbuf) == -1)
 			return (-1);
 	}
-
+#ifdef PCAP_SUPPORT_SERIAL
+	/*
+	 * Add Serial devices.
+	 */
+	if (serial_platform_finddevs(alldevsp, errbuf) < 0)
+		return (-1);
+#endif
 	/*
 	 * Add the "any" device.
 	 */
