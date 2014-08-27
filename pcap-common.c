@@ -994,7 +994,12 @@
  */
 #define LINKTYPE_IPMI_HPM_2	260
 
-#define LINKTYPE_MATCHING_MAX	260		/* highest value in the "matching" range */
+/*
+ * Serial interface capture types.
+ */
+#define LINKTYPE_SERIAL                         261
+
+#define LINKTYPE_MATCHING_MAX	261		/* highest value in the "matching" range */
 
 static struct linktype_map {
 	int	dlt;
