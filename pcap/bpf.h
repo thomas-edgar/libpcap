@@ -1311,6 +1311,12 @@ struct bpf_program {
  */
 #define DLT_IPMI_HPM_2	260
 
+/*
+ * Serial (RS332, RS485, ...) packets.
+ * This is just put in here by me right now need to request this from libpcap group.
+ */
+#define DLT_SERIAL		261
+
 #define DLT_MATCHING_MAX	260	/* highest value in the "matching" range */
 
 /*
