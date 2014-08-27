@@ -83,7 +83,7 @@ YACC = @V_YACC@
 	@rm -f $@
 	$(CC) $(FULL_CFLAGS) -c $(srcdir)/$*.c
 
-PSRC =	pcap-@V_PCAP@.c @USB_SRC@ @BT_SRC@ @BT_MONITOR_SRC@ @CAN_SRC@ @NETFILTER_SRC@ @CANUSB_SRC@ @DBUS_SRC@
+PSRC =	pcap-@V_PCAP@.c @USB_SRC@ @BT_SRC@ @BT_MONITOR_SRC@ @CAN_SRC@ @NETFILTER_SRC@ @CANUSB_SRC@ @DBUS_SRC@ @SERIAL_SRC@
 FSRC =  fad-@V_FINDALLDEVS@.c
 SSRC =  @SSRC@
 CSRC =	pcap.c inet.c gencode.c optimize.c nametoaddr.c etherent.c \
@@ -109,7 +109,8 @@ PUBHDR = \
 	pcap/pcap.h \
 	pcap/sll.h \
 	pcap/vlan.h \
-	pcap/usb.h
+	pcap/usb.h \
+	pcap/serial.h
 
 HDR = $(PUBHDR) \
 	arcnet.h \
@@ -321,6 +322,8 @@ EXTRA_DIST = \
 	pcap-pf.c \
 	pcap-septel.c \
 	pcap-septel.h \
+	pcap-serial-linux.c \
+	pcap-serial-linux.h \
 	pcap-sita.h \
 	pcap-sita.c \
 	pcap-sita.html \
@@ -544,6 +547,9 @@ selpolltest: tests/selpolltest.c libpcap.a
 
 valgrindtest: tests/valgrindtest.c libpcap.a
 	$(CC) $(FULL_CFLAGS) -I. -L. -o valgrindtest $(srcdir)/tests/valgrindtest.c libpcap.a $(LIBS)
+
+serialtest: tests/serialtest.c libpcap.a
+	$(CC) $(FULL_CFLAGS) -I. -L. -o serialtest $(srcdir)/tests/serialtest.c libpcap.a $(LIBS)
 
 install: install-shared install-archive pcap-config
 	[ -d $(DESTDIR)$(libdir) ] || \
