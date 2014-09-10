@@ -1,9 +1,50 @@
 /* 
  * pcap_serial_linux.c: Packet capture using serial interfaces.
+ * 
+ * Copyright © 2014, Battelle Memorial Institute. All rights reserved.
+ * 
+ * Battelle Memorial Institute (hereinafter Battelle) hereby grants 
+ * permission to any person or entity lawfully obtaining a copy of this 
+ * software and associated documentation files (hereinafter “the Software”) 
+ * to redistribute and use the Software in source and binary forms, with or 
+ * without modification.  Such person or entity may use, copy, modify, merge, 
+ * publish, distribute, sublicense, and/or sell copies of the Software, and may 
+ * permit others to do so, subject to the following conditions:
+ * 1. Redistributions of source code must retain the above copyright notice, 
+ *    this list of conditions and the following disclaimers. 
+ * 2. Redistributions in binary form must reproduce the above copyright notice, 
+ *    this list of conditions and the following disclaimer in the documentation 
+ *    and/or other materials provided with the distribution. 
+ * 3. Other than as used herein, neither the name Battelle Memorial Institute 
+ *    or Battelle may be used in any form whatsoever without the express written 
+ *    consent of Battelle.  
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ * ARE DISCLAIMED. IN NO EVENT SHALL BATTELLE OR CONTRIBUTORS BE LIABLE FOR ANY 
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND 
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF 
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * This Software was produced by Battelle under Contract No. DE-AC05-76RL01830 
+ * with the Department of Energy (hereinafter “DOE”).  The Government is 
+ * granted for itself and others acting on its behalf a nonexclusive, paid-up, 
+ * irrevocable worldwide license in the portion of the Software produced at 
+ * least in part with Government funds to reproduce, prepare derivative works, 
+ * and perform publicly and display publicly, and to permit others to do so.  
+ * The specific term of the Government license can be identified by inquiry made 
+ * to Battelle or DOE.  Neither the United States Government nor the DOE, nor 
+ * any of their employees, makes any warranty, express or implied, or assumes 
+ * any legal liability or responsibility for the accuracy, completeness or 
+ * usefulness of any data, apparatus, product or process disclosed, or represents 
+ * that its use would not infringe privately owned rights.  
  *
  * Author: Thomas W. Edgar
- *
- * Created on February 4, 2010, 6:52 PM
+ * 
  */
 
 #ifdef HAVE_CONFIG_H
@@ -13,9 +54,9 @@
 #include "pcap-int.h"
 #include "pcap-serial-linux.h"
 #include "pcap/serial.h"
-#include "pcap-sscp-linux.h"
-#include "pcap-dnp3-linux.h"
-#include "pcap-modbus-linux.h"
+//#include "pcap-sscp-linux.h"
+//#include "pcap-dnp3-linux.h"
+//#include "pcap-modbus-linux.h"
 
 
 #ifdef NEED_STRERROR_H
@@ -63,6 +104,29 @@ pcap_serial_packet_pointer *peek_on_queue(pcap_t *);
 
 static u_long timeout;
 
+/*
+ * Contains the location of the start of the packet and the time the packet was
+ * recieved.  Used by the time based packet parser and circular buffer.
+ * fields are in network byte order
+ */
+struct pcap_serial_linux {
+        int     baud;
+        int     databits;
+        int     stopbits;
+        int     parity;
+        int     write_pointer;  //Next available buffer index to write new data
+        int     read_pointer;   //Start of buffer location where current data resides
+        pthread_t thread;
+        int thread_run;
+        pcap_serial_packet_pointer *queue[QUEUE_MAX];
+        int queue_start;
+        int queue_stop;
+	int dev_id;		/* device ID of device we're bound to */
+	int ps_recv;
+	int ps_drop;
+	int ps_ifdrop;
+};
+
 /* function to detect if a physical port exists */
 int
 is_serial_port(const char* device)
@@ -82,7 +146,7 @@ is_serial_port(const char* device)
 }
 
 int
-serial_platform_finddevs(pcap_if_t **alldevsp, char *err_str)
+serial_findalldevs(pcap_if_t **alldevsp, char *err_str)
 {
 	struct dirent* data;
 	int ret = 0;
@@ -129,21 +193,111 @@ serial_platform_finddevs(pcap_if_t **alldevsp, char *err_str)
 }
 
 pcap_t *
-serial_create(const char *device, char *ebuf)
+serial_create(const char *device, char *ebuf, int *is_ours)
 {
-    	pcap_t *p;
+	const char *cp;
+	char *cpend;
+	long devnum;
+	pcap_t *p;
 
-	p = pcap_create_common(device, ebuf);
+	/* Does this look like a serial device? */
+	cp = strrchr(device, '/');
+	if (cp == NULL)
+		cp = device;
+	/* Does it begin with SERIAL_IFACE? */
+	if (strncmp(cp, SERIAL_IFACE, sizeof SERIAL_IFACE - 1) != 0) {
+		/* Nope, doesn't begin with SERIAL_IFACE */
+		*is_ours = 0;
+		return NULL;
+	}
+	/* Yes - is SERIAL_IFACE followed by a S or USB? */
+	cp += sizeof SERIAL_IFACE - 1;
+	if (strncmp(cp, "S", 1) != 0 && strncmp(cp, "USB", 3) != 0) {
+		/* Not followed by S or USB. */
+		*is_ours = 0;
+		return NULL;
+	}
+	if (strncmp(cp, "S", 1) == 0) cp += 1;
+	else cp += 3;
+	devnum = strtol(cp, &cpend, 10);
+	if (cpend == cp || *cpend != '\0') {
+		/* Not followed by a number. */
+		*is_ours = 0;
+		return NULL;
+	}
+	if (devnum < 0) {
+		/* Followed by a non-valid number. */
+		*is_ours = 0;
+		return NULL;
+	}
+
+	/* OK, it's probably ours. */
+	*is_ours = 1;
+
+	p = pcap_create_common(device, ebuf, sizeof (struct pcap_serial_linux));
 	if (p == NULL)
 		return (NULL);
 
 	p->activate_op = serial_activate;
-        p->opt.baud = -1;
-        p->opt.databits = -1;
-        p->opt.parity = -1;
-        p->opt.stopbits = -1;
+	struct pcap_serial_linux *handlep = p->priv;
+        handlep->baud = -1;
+        handlep->databits = -1;
+        handlep->parity = -1;
+        handlep->stopbits = -1;
 
 	return (p);
+}
+
+int
+serial_configure(pcap_t *p, int baud, int databits, int stopbits, int parity)
+{
+        struct pcap_serial_linux *handlep = p->priv;
+
+        /* Check input ranges for validity and set handle parameters to termios.h values for use */
+        switch (baud) {
+            case 300:
+            case 600:
+            case 1200:
+            case 2400:
+            case 4800:
+            case 9600:
+            case 19200:
+            case 38400:
+                break;
+            default: /* Did not find a valid baud rate */
+                return PCAP_ERROR;
+        }
+        switch (databits) {
+            case 8:
+            case 7:
+            case 6:
+            case 5:
+                break;
+            default: /* Did not find a valid databits value */
+                return PCAP_ERROR;
+        }
+        switch (stopbits) {
+            case 1:
+            case 2:
+                break;
+            default: /* Did not find a valid stopbits */
+                return PCAP_ERROR;
+        }
+        switch (parity) {
+            case 0:
+            case 1:
+            case 2:
+                break; // even
+            default: /* Did not find a valid parity  */
+                return PCAP_ERROR;
+        }
+
+        handlep->baud = baud;
+        handlep->databits = databits;
+        handlep->stopbits = stopbits;
+        handlep->parity = parity;
+
+        return 1;
 }
 
 /* I'm following what pcap-usb-linux does here since it seems to fit most closely
@@ -156,12 +310,13 @@ serial_activate(pcap_t* handle)
         int len = 0;
         int dlt_index = 0;
         struct termios config;
+	struct pcap_serial_linux *handlep = handle->priv;
 
         /* Check for if serial parameters are set before moving forward */
-        if(handle->opt.baud == -1 ||
-           handle->opt.databits == -1 ||
-           handle->opt.stopbits == -1 ||
-           handle->opt.parity == -1) {
+        if(handlep->baud == -1 ||
+           handlep->databits == -1 ||
+           handlep->stopbits == -1 ||
+           handlep->parity == -1) {
             snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
 			"Serial port configuration parameters are not set for %s", handle->opt.source);
             return PCAP_ERROR;
@@ -189,9 +344,9 @@ serial_activate(pcap_t* handle)
         }
 
         handle->dlt_list[dlt_index++] = DLT_SERIAL;
-        handle->dlt_list[dlt_index++] = DLT_DNP3;
-        handle->dlt_list[dlt_index++] = DLT_MODBUS;
-        handle->dlt_list[dlt_index++] = DLT_SSCP;
+        //handle->dlt_list[dlt_index++] = DLT_DNP3;
+        //handle->dlt_list[dlt_index++] = DLT_MODBUS;
+        //handle->dlt_list[dlt_index++] = DLT_SSCP;
         handle->dlt_count = dlt_index;
         /* The default dl_type is serial.  All other choices must be forced
          * via a call to pcap_set_datalink */
@@ -207,7 +362,7 @@ serial_activate(pcap_t* handle)
 			"Can't get Serial index from %s", handle->opt.source);
 		return PCAP_ERROR;
 	}
-        handle->md.ifindex = handle->opt.source[len-1];
+        handlep->dev_id = handle->opt.source[len-1];
 
         
         /*open the serial interface for reading*/
@@ -220,7 +375,7 @@ serial_activate(pcap_t* handle)
         }
 
         /* Create termios and set port settings */
-        switch (handle->opt.baud) {
+        switch (handlep->baud) {
             case 300: config.c_cflag = B300;
                 break;
             case 600: config.c_cflag = B600;
@@ -238,7 +393,7 @@ serial_activate(pcap_t* handle)
             case 38400: config.c_cflag = B38400;
                 break;
         }
-        switch (handle->opt.databits) {
+        switch (handlep->databits) {
             case 8: config.c_cflag |= CS8;
                 break;
             case 7: config.c_cflag |= CS7;
@@ -248,13 +403,13 @@ serial_activate(pcap_t* handle)
             case 5: config.c_cflag |= CS5;
                 break;
         }
-        switch (handle->opt.stopbits) {
+        switch (handlep->stopbits) {
             case 1: config.c_cflag |= 0;
                 break;
             case 2: config.c_cflag |= CSTOPB;
                 break;
         }
-        switch (handle->opt.parity) {
+        switch (handlep->parity) {
             case 0:
                 break; // none
             case 1: config.c_cflag |= PARENB | PARODD;
@@ -314,9 +469,10 @@ serial_activate(pcap_t* handle)
 static int
 serial_start_thread(pcap_t *handle)
 {
+    struct pcap_serial_linux *handlep = handle->priv;
     int status;
-    handle->thread_run = 1;
-    status = pthread_create(&(handle->thread), NULL, execute_parsing_thread_linux, (void *)handle);
+    handlep->thread_run = 1;
+    status = pthread_create(&(handlep->thread), NULL, execute_parsing_thread_linux, (void *)handle);
     if(status) {
         printf("Error; status from pthread_create is %d\n", status);
         return PCAP_ERROR;
@@ -363,9 +519,10 @@ serial_inject_linux(pcap_t *handle, const void *buf, size_t size)
 static int
 serial_stats_linux(pcap_t *handle, struct pcap_stat *stats)
 {
-	stats->ps_recv = handle->md.stat.ps_recv;
-	stats->ps_drop = handle->md.stat.ps_drop;
-	stats->ps_ifdrop = handle->md.stat.ps_ifdrop;
+        struct pcap_serial_linux *handlep = handle->priv;
+	stats->ps_recv = handlep->ps_recv;
+	stats->ps_drop = handlep->ps_drop;
+	stats->ps_ifdrop = handlep->ps_ifdrop;
 	return 0;
 }
 
@@ -403,34 +560,34 @@ serial_set_datalink(pcap_t *p, int dlt)
             if(!serial_start_thread(p)) return PCAP_ERROR;
 
             break;
-        case DLT_DNP3:
-            printf("Changing datalink to dnp\n");
-            p->thread_run = 0;
-            dnp_configure_datalink(p);
-            break;
-        case DLT_MODBUS:
-            printf("Changing datalink to modbus\n");
-            /* Calculate Modbus RTU timeout based on baud rate in milliseconds.
-             * If > 19200 use fixed value of 1750us per spec otherwise
-             * calculate 3.5 chars time */
-            if(p->opt.baud > 19200) {
-                timeout = 1.75;
-            }
-            else {
-                /* (bits per character * second in milliseconds) / baud */
-                timeout = (11 * 1000) / p->opt.baud;
-            }
-            /* clear buffers to restart with new timeout */
-            buffer_clear(p);
-            clear_queue(p);
-            p->read_op = serial_read_linux;
-            modbus_configure_datalink(p);
-            break;
-        case DLT_SSCP:
-            printf("Changing datalink to sscp\n");
-            p->thread_run = 0;
-            sscp_configure_datalink(p);
-            break;
+//        case DLT_DNP3:
+//            printf("Changing datalink to dnp\n");
+//            p->thread_run = 0;
+//            dnp_configure_datalink(p);
+//            break;
+//        case DLT_MODBUS:
+//            printf("Changing datalink to modbus\n");
+//            /* Calculate Modbus RTU timeout based on baud rate in milliseconds.
+//             * If > 19200 use fixed value of 1750us per spec otherwise
+//             * calculate 3.5 chars time */
+//            if(p->opt.baud > 19200) {
+//                timeout = 1.75;
+//            }
+//            else {
+//                /* (bits per character * second in milliseconds) / baud */
+//                timeout = (11 * 1000) / p->opt.baud;
+//            }
+//            /* clear buffers to restart with new timeout */
+//            buffer_clear(p);
+//            clear_queue(p);
+//            p->read_op = serial_read_linux;
+//            modbus_configure_datalink(p);
+//            break;
+//        case DLT_SSCP:
+//            printf("Changing datalink to sscp\n");
+//            p->thread_run = 0;
+//            sscp_configure_datalink(p);
+//            break;
     }
     p->linktype = dlt;
     return (0);
@@ -448,12 +605,13 @@ execute_parsing_thread_linux(void* arg)
     pcap_t* handle;
 
     handle = (pcap_t*) arg;
+    struct pcap_serial_linux *handlep = handle->priv;
     int numRead = 0;
     int current_packet_position = 0;
-    handle->read_pointer = 0;
-    handle->write_pointer = 0;
-    handle->queue_start = 0;
-    handle->queue_stop = 0;
+    handlep->read_pointer = 0;
+    handlep->write_pointer = 0;
+    handlep->queue_start = 0;
+    handlep->queue_stop = 0;
     long timer = 0;
 
     u_char datachunk[255];
@@ -461,7 +619,7 @@ execute_parsing_thread_linux(void* arg)
 
     sleeptime.tv_sec = 0;
     sleeptime.tv_nsec = 50000000;
-    while(handle->thread_run)
+    while(handlep->thread_run)
     {
         numRead = listen_serial_port(handle->fd, datachunk, sizeof(datachunk));
 
@@ -472,14 +630,14 @@ execute_parsing_thread_linux(void* arg)
         }
         
         if (get_time_millis() - timer >= timeout &&
-                current_packet_position != handle->write_pointer) {
+                current_packet_position != handlep->write_pointer) {
             pcap_serial_packet_pointer *packet = malloc(sizeof(pcap_serial_packet_pointer));
             packet->position = current_packet_position;
-            packet->length = buffer_get_packet_len(handle, packet->position, handle->write_pointer - 1);
+            packet->length = buffer_get_packet_len(handle, packet->position, handlep->write_pointer - 1);
             gettimeofday(&packet->ts, NULL);
             append_to_queue(handle, packet);
-            current_packet_position = handle->write_pointer;
-            handle->md.stat.ps_recv++;
+            current_packet_position = handlep->write_pointer;
+            handlep->ps_recv++;
         }
         nanosleep(&sleeptime, &remtime);
     }
@@ -540,19 +698,22 @@ buffer_get_space_size(pcap_t* handle, int start, int end)
 int
 buffer_size_free(pcap_t* handle)
 {
-    if(handle->write_pointer == handle->read_pointer) return handle->bufsize;
-   return buffer_get_space_size(handle, handle->write_pointer, handle->read_pointer);
+   struct pcap_serial_linux *handlep = handle->priv;
+   if(handlep->write_pointer == handlep->read_pointer) return handle->bufsize;
+   return buffer_get_space_size(handle, handlep->write_pointer, handlep->read_pointer);
 }
 
 int
 buffer_get_data_size(pcap_t* handle)
 {
-    return buffer_get_space_size(handle, handle->read_pointer, handle->write_pointer);
+    struct pcap_serial_linux *handlep = handle->priv;
+    return buffer_get_space_size(handle, handlep->read_pointer, handlep->write_pointer);
 }
 
 int
 buffer_get_packet_len(pcap_t* handle, int start, int end)
 {
+    struct pcap_serial_linux *handlep = handle->priv;
     if(start <= end) return end - start + 1;
     else {
         return handle->bufsize - ((start - 1) - end);
@@ -562,15 +723,15 @@ buffer_get_packet_len(pcap_t* handle, int start, int end)
 void
 buffer_add_data(pcap_t* handle, unsigned char *data, int size) {
     int i;
-
+    struct pcap_serial_linux *handlep = handle->priv;
     // loop through the data and add it to the ring buffer
     for (i = 0; i < size; i++) {
         // if at the end of ring buffer wrap to beginning
-        if (handle->write_pointer == handle->bufsize) handle->write_pointer = 0;
+        if (handlep->write_pointer == handle->bufsize) handlep->write_pointer = 0;
         // put the data in the ring buffer
-        handle->buffer[handle->write_pointer] = data[i];
+        handle->buffer[handlep->write_pointer] = data[i];
         // increment write ptr to next index
-        handle->write_pointer++;
+        handlep->write_pointer++;
     }
     return;
 }
@@ -579,7 +740,7 @@ void
 buffer_get_data(pcap_t* handle, int pos, unsigned char * data, int size)
 {
     int i;
-
+    struct pcap_serial_linux *handlep = handle->priv;
     for(i = 0; i < size; i++)
     {
         data[i] = handle->buffer[(pos + i) % handle->bufsize];
@@ -596,45 +757,51 @@ buffer_remove_data(pcap_t* handle, int pos, unsigned char * data, int size)
 
 void
 buffer_move_read_pointer(pcap_t* handle, int pos, int size) {
-    handle->read_pointer = (pos + size) % handle->bufsize;
+    struct pcap_serial_linux *handlep = handle->priv;
+    handlep->read_pointer = (pos + size) % handle->bufsize;
 }
 
 u_char
 buffer_get_byte(pcap_t* handle, int pos, int offset)
 {
+    struct pcap_serial_linux *handlep = handle->priv;
     return handle->buffer[(pos + offset) % handle->bufsize];
 }
 
 void
 buffer_clear(pcap_t* handle) {
-    handle->read_pointer = handle->write_pointer = 0;
+    struct pcap_serial_linux *handlep = handle->priv;
+    handlep->read_pointer = handlep->write_pointer = 0;
 }
 
 //Functions dealing with packet index queue for use by the time based
 //packetizing thread.
 int
 append_to_queue(pcap_t* handle, pcap_serial_packet_pointer *add_item) {
-    if(handle->queue_stop+1==handle->queue_start ||
-            (handle->queue_stop+1==QUEUE_MAX && !handle->queue_start)) {
+    struct pcap_serial_linux *handlep = handle->priv;
+    if(handlep->queue_stop+1==handlep->queue_start ||
+            (handlep->queue_stop+1==QUEUE_MAX && !handlep->queue_start)) {
         return -1;
     }
-    handle->queue[handle->queue_stop] = add_item;
-    handle->queue_stop++;
-    if(handle->queue_stop==QUEUE_MAX) handle->queue_stop = 0;
+    handlep->queue[handlep->queue_stop] = add_item;
+    handlep->queue_stop++;
+    if(handlep->queue_stop==QUEUE_MAX) handlep->queue_stop = 0;
 }
 
 pcap_serial_packet_pointer *
 remove_from_queue(pcap_t* handle) {
-    if(handle->queue_start==QUEUE_MAX) handle->queue_start = 0;
-    if(handle->queue_start == handle->queue_stop) return NULL;
-    handle->queue_start++;
+    struct pcap_serial_linux *handlep = handle->priv;
+    if(handlep->queue_start==QUEUE_MAX) handlep->queue_start = 0;
+    if(handlep->queue_start == handlep->queue_stop) return NULL;
+    handlep->queue_start++;
 
-    return handle->queue[handle->queue_start-1];
+    return handlep->queue[handlep->queue_start-1];
 }
 
 pcap_serial_packet_pointer *
 peek_on_queue(pcap_t* handle) {
-    return handle->queue[handle->queue_start];
+    struct pcap_serial_linux *handlep = handle->priv;
+    return handlep->queue[handlep->queue_start];
 }
 
 void

@@ -124,6 +124,9 @@
 /* define if net/pfvar.h defines PF_NAT through PF_NORDR */
 #undef HAVE_PF_NAT_THROUGH_PF_NORDR
 
+/* Define to 1 if you have the <pthread.h> header file. */
+#undef HAVE_PTHREAD_H
+
 /* define if you have a Septel API */
 #undef HAVE_SEPTEL_API
 
@@ -189,6 +192,9 @@
 
 /* Define to 1 if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <termios.h> header file. */
+#undef HAVE_TERMIOS_H
 
 /* if if_packet.h has tpacket_stats defined */
 #undef HAVE_TPACKET_STATS
@@ -270,6 +276,9 @@
 
 /* target host supports netfilter sniffing */
 #undef PCAP_SUPPORT_NETFILTER
+
+/* target host supports Serial sniffing */
+#undef PCAP_SUPPORT_SERIAL
 
 /* target host supports USB sniffing */
 #undef PCAP_SUPPORT_USB

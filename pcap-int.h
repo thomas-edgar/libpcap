@@ -51,7 +51,6 @@ extern CRITICAL_SECTION g_PcapCompileCriticalSection;
 #endif
 
 #ifdef PCAP_SUPPORT_SERIAL
-#include <pcap/serial.h>
 #include <pthread.h>
 #endif
 
@@ -119,12 +118,7 @@ struct pcap_opt {
 	int	immediate;	/* immediate mode - deliver packets as soon as they arrive */
 	int	tstamp_type;
 	int	tstamp_precision;
-#ifdef PCAP_SUPPORT_SERIAL
-        int     baud;
-        int     databits;
-        int     stopbits;
-        int     parity;
-#endif
+
 };
 
 typedef int	(*activate_op_t)(pcap_t *);
@@ -176,17 +170,6 @@ struct pcap {
 	u_char *buffer;
 	u_char *bp;
 	int cc;
-#ifdef PCAP_SUPPORT_SERIAL
-        int     write_pointer;  //Next available buffer index to write new data
-        int     read_pointer;   //Start of buffer location where current data resides
-        int     stopbits;
-        int     parity;
-        pthread_t thread;
-        int thread_run;
-        pcap_serial_packet_pointer *queue[QUEUE_MAX];
-        int queue_start;
-        int queue_stop;
-#endif
 
 	int break_loop;		/* flag set to force break from packet-reading loop */
 

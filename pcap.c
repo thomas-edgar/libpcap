@@ -84,6 +84,10 @@
 #include "pcap-usb-linux.h"
 #endif
 
+#ifdef PCAP_SUPPORT_SERIAL
+#include "pcap-serial-linux.h"
+#endif
+
 #ifdef PCAP_SUPPORT_BT
 #include "pcap-bt-linux.h"
 #endif
@@ -334,6 +338,9 @@ struct capture_source_type {
 #endif
 #ifdef PCAP_SUPPORT_USB
 	{ usb_findalldevs, usb_create },
+#endif
+#ifdef PCAP_SUPPORT_SERIAL
+	{ serial_findalldevs, serial_create },
 #endif
 #ifdef PCAP_SUPPORT_NETFILTER
 	{ netfilter_findalldevs, netfilter_create },
@@ -831,51 +838,7 @@ pcap_open_offline_common(char *ebuf, size_t size)
 int
 pcap_configure_serial(pcap_t *p, int baud, int databits, int stopbits, int parity)
 {
-        /* Check input ranges for validity and set handle parameters to termios.h values for use */
-        switch (baud) {
-            case 300:
-            case 600:
-            case 1200:
-            case 2400:
-            case 4800:
-            case 9600:
-            case 19200:
-            case 38400:
-                break;
-            default: /* Did not find a valid baud rate */
-                return PCAP_ERROR;
-        }
-        switch (databits) {
-            case 8:
-            case 7:
-            case 6:
-            case 5:
-                break;
-            default: /* Did not find a valid databits value */
-                return PCAP_ERROR;
-        }
-        switch (stopbits) {
-            case 1:
-            case 2:
-                break;
-            default: /* Did not find a valid stopbits */
-                return PCAP_ERROR;
-        }
-        switch (parity) {
-            case 0:
-            case 1:
-            case 2:
-                break; // even
-            default: /* Did not find a valid parity  */
-                return PCAP_ERROR;
-        }
-
-        p->opt.baud = baud;
-        p->opt.databits = databits;
-        p->opt.stopbits = stopbits;
-        p->opt.parity = parity;
-
-        return 1;
+     	return serial_configure(p, baud, databits, stopbits, parity);
 }
 
 

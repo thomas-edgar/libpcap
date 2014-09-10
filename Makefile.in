@@ -134,7 +134,8 @@ TESTS = \
 	findalldevstest \
 	opentest \
 	selpolltest \
-	valgrindtest
+	valgrindtest \
+	serialtest
 
 TESTS_SRC = \
 	tests/capturetest.c \
@@ -143,7 +144,8 @@ TESTS_SRC = \
 	tests/opentest.c \
 	tests/reactivatetest.c \
 	tests/selpolltest.c \
-	tests/valgrindtest.c
+	tests/valgrindtest.c \
+	tests/serialtest.c
 
 GENHDR = \
 	scanner.h tokdefs.h version.h
