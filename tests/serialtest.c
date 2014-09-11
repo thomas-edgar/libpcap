@@ -82,6 +82,21 @@ int main(int argc, char **argv)
   int packet_count = 0;
   FILE *f;
 
+  if(argc > 1) {
+      if(!strcmp(argv[1], "sscp")) mode = 2;
+      else if(!strcmp(argv[1], "modbus")) mode = 3;
+      else if(!strcmp(argv[1], "dnp")) mode = 4;
+      else {
+          /* Unsupported argument; print error message and quit */
+          printf("Unsupported argument.  The supported values are:\n");
+          printf("sscp, modbus, dnp, and no argument\n");
+      }
+  }
+  else mode = 1;
+
+  if(mode == 1) printf("SerialTest | Mode : Serial\n");
+  else printf("SerialTest | Mode : %s\n", argv[1]);
+
 /*
   if (pcap_findalldevs(&alldevs, errbuf) == -1)
   {
@@ -134,6 +149,26 @@ int main(int argc, char **argv)
       exit(1);
   }
 
+  printf("mode = %d\n", mode);
+
+  switch(mode) {
+      case 2: {
+        pcap_set_datalink(descr1, DLT_SSCP);
+        break;
+      }
+      case 3: {
+        pcap_set_datalink(descr1, DLT_MODBUS);
+        break;
+      }
+      case 4: {
+          pcap_set_datalink(descr1, DLT_DNP3);
+          break;
+      }
+      case 1: /* do nothing */
+      default:
+          break;
+  }
+
   printf("Opened %s\n", descr1->opt.source);
 
 
@@ -151,7 +186,23 @@ int main(int argc, char **argv)
       exit(1);
   }
 
-
+    switch(mode) {
+      case 2: {
+        pcap_set_datalink(descr2, DLT_SSCP);
+        break;
+      }
+      case 3: {
+        pcap_set_datalink(descr2, DLT_MODBUS);
+        break;
+      }
+      case 4: {
+          pcap_set_datalink(descr2, DLT_DNP3);
+          break;
+      }
+      case 1: /* do nothing */
+      default:
+          break;
+  }
 
   printf("Opened %s\n", descr2->opt.source);
 
