@@ -55,8 +55,8 @@
 #include "pcap-serial-linux.h"
 #include "pcap/serial.h"
 //#include "pcap-sscp-linux.h"
-/include "pcap-dnp3-linux.h"
-/include "pcap-modbus-linux.h"
+#include "pcap-dnp3-linux.h"
+#include "pcap-modbus-linux.h"
 
 
 #ifdef NEED_STRERROR_H
@@ -103,29 +103,6 @@ pcap_serial_packet_pointer *remove_from_queue(pcap_t *);
 pcap_serial_packet_pointer *peek_on_queue(pcap_t *);
 
 static u_long timeout;
-
-/*
- * Contains the location of the start of the packet and the time the packet was
- * recieved.  Used by the time based packet parser and circular buffer.
- * fields are in network byte order
- */
-struct pcap_serial_linux {
-        int     baud;
-        int     databits;
-        int     stopbits;
-        int     parity;
-        int     write_pointer;  //Next available buffer index to write new data
-        int     read_pointer;   //Start of buffer location where current data resides
-        pthread_t thread;
-        int thread_run;
-        pcap_serial_packet_pointer *queue[QUEUE_MAX];
-        int queue_start;
-        int queue_stop;
-	int dev_id;		/* device ID of device we're bound to */
-	int ps_recv;
-	int ps_drop;
-	int ps_ifdrop;
-};
 
 /* function to detect if a physical port exists */
 int
@@ -542,6 +519,7 @@ serial_setdirection_linux(pcap_t *p, pcap_direction_t d)
 static int
 serial_set_datalink(pcap_t *p, int dlt)
 {
+    struct pcap_serial_linux *handlep = p->priv;
     printf("In serial_set_datalink %d %d\n", p->linktype, dlt);
     if(p->linktype == dlt) return 0;
     
@@ -562,7 +540,7 @@ serial_set_datalink(pcap_t *p, int dlt)
             break;
         case DLT_DNP3:
             printf("Changing datalink to dnp\n");
-            p->thread_run = 0;
+            handlep->thread_run = 0;
             dnp_configure_datalink(p);
             break;
         case DLT_MODBUS:
@@ -570,12 +548,12 @@ serial_set_datalink(pcap_t *p, int dlt)
             /* Calculate Modbus RTU timeout based on baud rate in milliseconds.
              * If > 19200 use fixed value of 1750us per spec otherwise
              * calculate 3.5 chars time */
-            if(p->opt.baud > 19200) {
+            if(handlep->baud > 19200) {
                 timeout = 1.75;
             }
             else {
                 /* (bits per character * second in milliseconds) / baud */
-                timeout = (11 * 1000) / p->opt.baud;
+                timeout = (11 * 1000) / handlep->baud;
             }
             /* clear buffers to restart with new timeout */
             buffer_clear(p);
@@ -585,7 +563,7 @@ serial_set_datalink(pcap_t *p, int dlt)
             break;
 //        case DLT_SSCP:
 //            printf("Changing datalink to sscp\n");
-//            p->thread_run = 0;
+//            handlep->thread_run = 0;
 //            sscp_configure_datalink(p);
 //            break;
     }

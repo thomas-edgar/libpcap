@@ -53,6 +53,8 @@
 extern "C" {
 #endif
 
+#include "pcap/serial.h"
+
 /*
  * Prototypes for Serial-related functions
  */
@@ -72,6 +74,29 @@ void buffer_move_read_pointer(pcap_t* handle, int pos, int size);
 u_char buffer_get_byte(pcap_t* handle, int pos, int offset);
 void buffer_clear(pcap_t* handle);
 void clear_queue(pcap_t* handle);
+
+/*
+ * Contains the location of the start of the packet and the time the packet was
+ * recieved.  Used by the time based packet parser and circular buffer.
+ * fields are in network byte order
+ */
+struct pcap_serial_linux {
+        int     baud;
+        int     databits;
+        int     stopbits;
+        int     parity;
+        int     write_pointer;  //Next available buffer index to write new data
+        int     read_pointer;   //Start of buffer location where current data resides
+        pthread_t thread;
+        int thread_run;
+        pcap_serial_packet_pointer *queue[QUEUE_MAX];
+        int queue_start;
+        int queue_stop;
+	int dev_id;		/* device ID of device we're bound to */
+	int ps_recv;
+	int ps_drop;
+	int ps_ifdrop;
+};
 
 
 #ifdef	__cplusplus
