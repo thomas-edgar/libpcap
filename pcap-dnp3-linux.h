@@ -1,5 +1,5 @@
 /* 
- * pcap_dnp3_linux.c: Packet capture for serial DNP3 frames
+ * pcap_dnp3_linux.h: Packet capture for serial DNP3 frames
  * 
  * Copyright © 2014, Battelle Memorial Institute. All rights reserved.
  * 
