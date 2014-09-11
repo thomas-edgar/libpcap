@@ -1000,8 +1000,9 @@
 #define LINKTYPE_SERIAL                         261
 #define LINKTYPE_DNP3                           262
 #define LINKTYPE_MODBUS                         263
+#define LINKTYPE_SSCP	                        264
 
-#define LINKTYPE_MATCHING_MAX	263		/* highest value in the "matching" range */
+#define LINKTYPE_MATCHING_MAX	264		/* highest value in the "matching" range */
 
 static struct linktype_map {
 	int	dlt;
