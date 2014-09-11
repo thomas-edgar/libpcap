@@ -255,6 +255,11 @@ typedef void (*pcap_handler)(u_char *, const struct pcap_pkthdr *,
 #define PCAP_ERROR_CANTSET_TSTAMP_TYPE	-10	/* this device doesn't support setting the time stamp type */
 #define PCAP_ERROR_PROMISC_PERM_DENIED	-11	/* you don't have permission to capture in promiscuous mode */
 #define PCAP_ERROR_TSTAMP_PRECISION_NOTSUP -12  /* the requested time stamp precision is not supported */
+/* For Serial */
+#define PCAP_ERROR_BAUD			-13     /* unsupported baud rate */
+#define PCAP_ERROR_DATABITS		-14     /* unsupported number of databits */
+#define PCAP_ERROR_STOPBITS		-15     /* unsupported number of stopbits */
+#define PCAP_ERROR_PARITY		-16     /* unsupported number of parity bits */
 
 /*
  * Warning codes for the pcap API.
