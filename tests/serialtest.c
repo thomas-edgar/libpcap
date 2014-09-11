@@ -81,11 +81,11 @@ int main(int argc, char **argv)
   char filename[] = "./test.pcap";
   int packet_count = 0;
   FILE *f;
+  int mode;
 
   if(argc > 1) {
-      if(!strcmp(argv[1], "sscp")) mode = 2;
-      else if(!strcmp(argv[1], "modbus")) mode = 3;
-      else if(!strcmp(argv[1], "dnp")) mode = 4;
+      if(!strcmp(argv[1], "modbus")) mode = 2;
+      else if(!strcmp(argv[1], "dnp")) mode = 3;
       else {
           /* Unsupported argument; print error message and quit */
           printf("Unsupported argument.  The supported values are:\n");
@@ -153,16 +153,12 @@ int main(int argc, char **argv)
 
   switch(mode) {
       case 2: {
-        pcap_set_datalink(descr1, DLT_SSCP);
-        break;
-      }
-      case 3: {
         pcap_set_datalink(descr1, DLT_MODBUS);
         break;
       }
-      case 4: {
-          pcap_set_datalink(descr1, DLT_DNP3);
-          break;
+      case 3: {
+        pcap_set_datalink(descr1, DLT_DNP3);
+        break;
       }
       case 1: /* do nothing */
       default:
@@ -188,16 +184,12 @@ int main(int argc, char **argv)
 
     switch(mode) {
       case 2: {
-        pcap_set_datalink(descr2, DLT_SSCP);
-        break;
-      }
-      case 3: {
         pcap_set_datalink(descr2, DLT_MODBUS);
         break;
       }
-      case 4: {
-          pcap_set_datalink(descr2, DLT_DNP3);
-          break;
+      case 3: {
+        pcap_set_datalink(descr2, DLT_DNP3);
+        break;
       }
       case 1: /* do nothing */
       default:
