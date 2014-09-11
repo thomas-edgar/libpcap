@@ -55,8 +55,8 @@
 #include "pcap-serial-linux.h"
 #include "pcap/serial.h"
 //#include "pcap-sscp-linux.h"
-//#include "pcap-dnp3-linux.h"
-//#include "pcap-modbus-linux.h"
+/include "pcap-dnp3-linux.h"
+/include "pcap-modbus-linux.h"
 
 
 #ifdef NEED_STRERROR_H
@@ -344,8 +344,8 @@ serial_activate(pcap_t* handle)
         }
 
         handle->dlt_list[dlt_index++] = DLT_SERIAL;
-        //handle->dlt_list[dlt_index++] = DLT_DNP3;
-        //handle->dlt_list[dlt_index++] = DLT_MODBUS;
+        handle->dlt_list[dlt_index++] = DLT_DNP3;
+        handle->dlt_list[dlt_index++] = DLT_MODBUS;
         //handle->dlt_list[dlt_index++] = DLT_SSCP;
         handle->dlt_count = dlt_index;
         /* The default dl_type is serial.  All other choices must be forced
@@ -560,29 +560,29 @@ serial_set_datalink(pcap_t *p, int dlt)
             if(!serial_start_thread(p)) return PCAP_ERROR;
 
             break;
-//        case DLT_DNP3:
-//            printf("Changing datalink to dnp\n");
-//            p->thread_run = 0;
-//            dnp_configure_datalink(p);
-//            break;
-//        case DLT_MODBUS:
-//            printf("Changing datalink to modbus\n");
-//            /* Calculate Modbus RTU timeout based on baud rate in milliseconds.
-//             * If > 19200 use fixed value of 1750us per spec otherwise
-//             * calculate 3.5 chars time */
-//            if(p->opt.baud > 19200) {
-//                timeout = 1.75;
-//            }
-//            else {
-//                /* (bits per character * second in milliseconds) / baud */
-//                timeout = (11 * 1000) / p->opt.baud;
-//            }
-//            /* clear buffers to restart with new timeout */
-//            buffer_clear(p);
-//            clear_queue(p);
-//            p->read_op = serial_read_linux;
-//            modbus_configure_datalink(p);
-//            break;
+        case DLT_DNP3:
+            printf("Changing datalink to dnp\n");
+            p->thread_run = 0;
+            dnp_configure_datalink(p);
+            break;
+        case DLT_MODBUS:
+            printf("Changing datalink to modbus\n");
+            /* Calculate Modbus RTU timeout based on baud rate in milliseconds.
+             * If > 19200 use fixed value of 1750us per spec otherwise
+             * calculate 3.5 chars time */
+            if(p->opt.baud > 19200) {
+                timeout = 1.75;
+            }
+            else {
+                /* (bits per character * second in milliseconds) / baud */
+                timeout = (11 * 1000) / p->opt.baud;
+            }
+            /* clear buffers to restart with new timeout */
+            buffer_clear(p);
+            clear_queue(p);
+            p->read_op = serial_read_linux;
+            modbus_configure_datalink(p);
+            break;
 //        case DLT_SSCP:
 //            printf("Changing datalink to sscp\n");
 //            p->thread_run = 0;
