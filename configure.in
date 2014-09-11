@@ -1353,7 +1353,7 @@ AC_MSG_CHECKING(for Serial sniffing support)
 case "$host_os" in
 linux*)
 	AC_DEFINE([PCAP_SUPPORT_SERIAL],1,[target host supports Serial sniffing])
-	SERIAL_SRC="pcap-serial-linux.c pcap-dnp3-linux.c pcap-modbus-linux.c"
+	SERIAL_SRC="pcap-serial-linux.c pcap-dnp3-linux.c pcap-modbus-linux.c pcap-sscp-linux.c"
 	AC_MSG_RESULT(yes)
 	AC_CHECK_HEADERS(termios.h)
 	AC_CHECK_HEADERS(pthread.h)

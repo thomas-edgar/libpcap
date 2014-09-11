@@ -7816,7 +7816,7 @@ linux*)
 
 $as_echo "#define PCAP_SUPPORT_SERIAL 1" >>confdefs.h
 
-	SERIAL_SRC="pcap-serial-linux.c pcap-dnp3-linux.c pcap-modbus-linux.c"
+	SERIAL_SRC="pcap-serial-linux.c pcap-dnp3-linux.c pcap-modbus-linux.c pcap-sscp-linux.c"
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
 	for ac_header in termios.h
