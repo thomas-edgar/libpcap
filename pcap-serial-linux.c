@@ -54,7 +54,7 @@
 #include "pcap-int.h"
 #include "pcap-serial-linux.h"
 #include "pcap/serial.h"
-//#include "pcap-sscp-linux.h"
+#include "pcap-sscp-linux.h"
 #include "pcap-dnp3-linux.h"
 #include "pcap-modbus-linux.h"
 
@@ -323,7 +323,7 @@ serial_activate(pcap_t* handle)
         handle->dlt_list[dlt_index++] = DLT_SERIAL;
         handle->dlt_list[dlt_index++] = DLT_DNP3;
         handle->dlt_list[dlt_index++] = DLT_MODBUS;
-        //handle->dlt_list[dlt_index++] = DLT_SSCP;
+        handle->dlt_list[dlt_index++] = DLT_SSCP;
         handle->dlt_count = dlt_index;
         /* The default dl_type is serial.  All other choices must be forced
          * via a call to pcap_set_datalink */
@@ -561,11 +561,11 @@ serial_set_datalink(pcap_t *p, int dlt)
             p->read_op = serial_read_linux;
             modbus_configure_datalink(p);
             break;
-//        case DLT_SSCP:
-//            printf("Changing datalink to sscp\n");
-//            handlep->thread_run = 0;
-//            sscp_configure_datalink(p);
-//            break;
+        case DLT_SSCP:
+            printf("Changing datalink to sscp\n");
+            handlep->thread_run = 0;
+            sscp_configure_datalink(p);
+            break;
     }
     p->linktype = dlt;
     return (0);
