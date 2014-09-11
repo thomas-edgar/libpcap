@@ -1316,8 +1316,11 @@ struct bpf_program {
  * This is just put in here by me right now need to request this from libpcap group.
  */
 #define DLT_SERIAL		261
+#define DLT_DNP3                262
+#define DLT_MODBUS              263
 
-#define DLT_MATCHING_MAX	260	/* highest value in the "matching" range */
+
+#define DLT_MATCHING_MAX	263	/* highest value in the "matching" range */
 
 /*
  * DLT and savefile link type values are split into a class and
