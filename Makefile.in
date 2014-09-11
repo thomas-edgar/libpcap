@@ -310,12 +310,16 @@ EXTRA_DIST = \
 	pcap-dbus.c \
 	pcap-dbus.h \
 	pcap-dlpi.c \
+	pcap-dnp3-linux.c \
+	pcap-dnp3-linux.h \
 	pcap-dos.c \
 	pcap-dos.h \
 	pcap-enet.c \
 	pcap-int.h \
 	pcap-libdlpi.c \
 	pcap-linux.c \
+	pcap-modbus-linux.c \
+	pcap-modbus-linux.h \
 	pcap-namedb.h \
 	pcap-netfilter-linux.c \
 	pcap-netfilter-linux.h \
