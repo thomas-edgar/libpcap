@@ -62,8 +62,6 @@
 
 #include <pcap.h>
 
-static void ifprint(pcap_if_t *d);
-static char *iptos(bpf_u_int32 in);
 static void displayMessage(const u_char *, int);
 void serialtest_callback(u_char *, const struct pcap_pkthdr *, const u_char *);
 
@@ -82,67 +80,67 @@ int main(int argc, char **argv)
   int packet_count = 0;
   FILE *f;
   int mode;
+  int packet_total;
 
-  if(argc > 1) {
-      if(!strcmp(argv[1], "modbus")) mode = 2;
-      else if(!strcmp(argv[1], "dnp")) mode = 3;
-      else if(!strcmp(argv[1], "sscp")) mode = 4;
-      else {
-          /* Unsupported argument; print error message and quit */
-          printf("Unsupported argument.  The supported values are:\n");
-          printf("sscp, modbus, dnp, and no argument\n");
-      }
-  }
-  else mode = 1;
+  if(argc < 7) {
+  	printf("Error too few arguments.\n Usage serialtest mode device1 baud1 device2 baud2 packets output\n Modes: sscp | modbus | dnp | serial\nDevice example: ttyS1\nBauds: 300, 1200, 2400, 4800, 9600, 19200, 38400, 56000\nPackets is the number of packets to capture\nOutput is the filename for the output pcap file\n");  
+	return -1;
+  } 
 
-  if(mode == 1) printf("SerialTest | Mode : Serial\n");
-  else printf("SerialTest | Mode : %s\n", argv[1]);
-
-/*
-  if (pcap_findalldevs(&alldevs, errbuf) == -1)
-  {
-    fprintf(stderr,"Error in pcap_findalldevs: %s\n",errbuf);
-    exit(1);
-  }
-  for(d=alldevs;d;d=d->next)
-  {
-    ifprint(d);
-    if((strncmp(d->name, "ttyS0", 5) == 0 || strncmp(d->name, "ttyS1", 5) == 0 ||
-            strncmp(d->name, "ttyS2", 5) == 0 || strncmp(d->name, "ttyS3", 5) == 0 ||
-            strncmp(d->name, "ttyUSB0", 7) == 0 || strncmp(d->name, "ttyUSB1", 7) == 0 ||
-            strncmp(d->name, "ttyUSB2", 7) == 0 || strncmp(d->name, "ttyUSB3", 7) == 0)) {
-        printf("Found a serial interface.\n");
-        if(serial == NULL) serial = d;
-        else if(serial2 == NULL) serial2 = d;
-    }
+  if(!strcmp(argv[1], "sscp")) mode = 2;
+  else if(!strcmp(argv[1], "modbus")) mode = 3;
+  else if(!strcmp(argv[1], "dnp")) mode = 4;
+  else if(!strcmp(argv[1], "serial")) mode = 1;
+  else {
+    /* Unsupported argument; print error message and quit */
+    printf("Unsupported argument.  The supported values are:\n");
+    printf("sscp, modbus, dnp, and no argument\n");
   }
 
 
-  if(serial == NULL || serial2 == NULL) {
-    fprintf(stderr,"Error: Did not find two serial interfaces.\n");
-    exit(1);
-  }
-*/
+  packet_total = atoi(argv[6]);
+
+printf("SerialTest | Mode : ");
+if(mode ==1 ) printf ("Serial\n");
+else printf("%s\n", argv[1]);
+
   /* Open pcap file to save output */
 
 #if !defined(WIN32) && !defined(MSDOS)
-        f = fopen(filename, "w");
+        f = fopen(argv[7], "w");
 #else
-        f = fopen(filename, "wb");
+        f = fopen(argv[7], "wb");
 #endif
         if (f == NULL) {
             printf("Error opening pcap file. %s\n", filename);
                 return 0;
         }
 
-
-  descr1 = pcap_create("ttyS1", errbuf);
-  if((status = pcap_set_snaplen(descr1, BUFSIZ)) < 0) {
+  descr1 = pcap_create(argv[2], errbuf);
+  if((status = pcap_set_snaplen(descr1, 32768)) < 0) {
       printf("Error configuring serial port %d.\n", status);
       exit(1);
   }
-  if((status = pcap_configure_serial(descr1, 9600, 8, 1, 0)) != 1) {
-      printf("Error configuring serial port %d.\n", status);
+  if((status = pcap_configure_serial(descr1, atoi(argv[3]), 8, 1, 0)) != 1) {
+      switch(status) {
+	case PCAP_ERROR_BAUD: {
+	  printf("Error configuring serial port: Unsupported BAUD rate\n");
+	  break;
+	}
+	case PCAP_ERROR_DATABITS: {
+	  printf("Error configuring serial port: Unsupported databits\n");
+	  break;
+	}
+	case PCAP_ERROR_STOPBITS: {
+	  printf("Error configuring serial port: Unsupported stopbits\n");
+	  break;
+	}
+	case PCAP_ERROR_PARITY: {
+	  printf("Error configuring serial port: Unsupported parity\n");
+	  break;
+	}
+	default: break;
+	}
       exit(1);
   }
   if((status = pcap_activate(descr1)) < 0) {
@@ -150,20 +148,21 @@ int main(int argc, char **argv)
       exit(1);
   }
 
+
   printf("mode = %d\n", mode);
 
   switch(mode) {
       case 2: {
-        pcap_set_datalink(descr1, DLT_MODBUS);
+        pcap_set_datalink(descr1, DLT_SSCP);
         break;
       }
       case 3: {
-        pcap_set_datalink(descr1, DLT_DNP3);
+        pcap_set_datalink(descr1, DLT_MODBUS);
         break;
       }
       case 4: {
-        pcap_set_datalink(descr1, DLT_SSCP);
-        break;
+          pcap_set_datalink(descr1, DLT_DNP3);
+          break;
       }
       case 1: /* do nothing */
       default:
@@ -173,13 +172,31 @@ int main(int argc, char **argv)
   printf("Opened %s\n", descr1->opt.source);
 
 
-  descr2 = pcap_create("ttyS2", errbuf);
-  if((status = pcap_set_snaplen(descr2, BUFSIZ)) < 0) {
+  descr2 = pcap_create(argv[4], errbuf);
+  if((status = pcap_set_snaplen(descr2, 32768)) < 0) {
       printf("Error configuring serial port %d.\n", status);
       exit(1);
   }
-    if(!(status = pcap_configure_serial(descr2, 9600, 8, 1, 0))) {
-      printf("Error configuring serial port %d.\n", status);
+    if(!(status = pcap_configure_serial(descr2, atoi(argv[5]), 8, 1, 0))) {
+       switch(status) {
+	case PCAP_ERROR_BAUD: {
+	  printf("Error configuring serial port: Unsupported BAUD rate\n");
+	  break;
+	}
+	case PCAP_ERROR_DATABITS: {
+	  printf("Error configuring serial port: Unsupported databits\n");
+	  break;
+	}
+	case PCAP_ERROR_STOPBITS: {
+	  printf("Error configuring serial port: Unsupported stopbits\n");
+	  break;
+	}
+	case PCAP_ERROR_PARITY: {
+	  printf("Error configuring serial port: Unsupported parity\n");
+	  break;
+	}
+	default: break;
+	}
       exit(1);
   }
     if((status = pcap_activate(descr2)) < 0) {
@@ -189,16 +206,16 @@ int main(int argc, char **argv)
 
     switch(mode) {
       case 2: {
-        pcap_set_datalink(descr2, DLT_MODBUS);
+        pcap_set_datalink(descr2, DLT_SSCP);
         break;
       }
       case 3: {
-        pcap_set_datalink(descr2, DLT_DNP3);
+        pcap_set_datalink(descr2, DLT_MODBUS);
         break;
       }
       case 4: {
-        pcap_set_datalink(descr2, DLT_SSCP);
-        break;
+          pcap_set_datalink(descr2, DLT_DNP3);
+          break;
       }
       case 1: /* do nothing */
       default:
@@ -215,7 +232,7 @@ int main(int argc, char **argv)
   printf("Complete\n");
   printf("Configured %s and %s\n", descr1->opt.source, descr2->opt.source);
   printf("%d\n", pcap_dispatch(descr1, 10, serialtest_callback, (char *)pd));
-  while(packet_count < 6) {
+  while(packet_count < packet_total) {
       packet_count += pcap_dispatch(descr1, 10, serialtest_callback, (char *)pd);
       //printf("packet count %d\n", packet_count);
       packet_count += pcap_dispatch(descr2, 10, serialtest_callback, (char *)pd);
@@ -235,82 +252,9 @@ void serialtest_callback(u_char *useless, const struct pcap_pkthdr *pkthdr, cons
     pcap_dump(useless, pkthdr, packet);
 }
 
-static void ifprint(pcap_if_t *d)
-{
-  pcap_addr_t *a;
-#ifdef INET6
-  char ntop_buf[INET6_ADDRSTRLEN];
-#endif
 
-  printf("%s\n",d->name);
-  if (d->description)
-    printf("\tDescription: %s\n",d->description);
-  printf("\tLoopback: %s\n",(d->flags & PCAP_IF_LOOPBACK)?"yes":"no");
 
-  for(a=d->addresses;a;a=a->next) {
-    switch(a->addr->sa_family)
-    {
-      case AF_INET:
-        printf("\tAddress Family: AF_INET\n");
-        if (a->addr)
-          printf("\t\tAddress: %s\n",
-            inet_ntoa(((struct sockaddr_in *)(a->addr))->sin_addr));
-        if (a->netmask)
-          printf("\t\tNetmask: %s\n",
-            inet_ntoa(((struct sockaddr_in *)(a->netmask))->sin_addr));
-        if (a->broadaddr)
-          printf("\t\tBroadcast Address: %s\n",
-            inet_ntoa(((struct sockaddr_in *)(a->broadaddr))->sin_addr));
-        if (a->dstaddr)
-          printf("\t\tDestination Address: %s\n",
-            inet_ntoa(((struct sockaddr_in *)(a->dstaddr))->sin_addr));
-        break;
-#ifdef INET6
-      case AF_INET6:
-        printf("\tAddress Family: AF_INET6\n");
-        if (a->addr)
-          printf("\t\tAddress: %s\n",
-            inet_ntop(AF_INET6,
-               ((struct sockaddr_in6 *)(a->addr))->sin6_addr.s6_addr,
-               ntop_buf, sizeof ntop_buf));
-        if (a->netmask)
-          printf("\t\tNetmask: %s\n",
-            inet_ntop(AF_INET6,
-              ((struct sockaddr_in6 *)(a->netmask))->sin6_addr.s6_addr,
-               ntop_buf, sizeof ntop_buf));
-        if (a->broadaddr)
-          printf("\t\tBroadcast Address: %s\n",
-            inet_ntop(AF_INET6,
-              ((struct sockaddr_in6 *)(a->broadaddr))->sin6_addr.s6_addr,
-               ntop_buf, sizeof ntop_buf));
-        if (a->dstaddr)
-          printf("\t\tDestination Address: %s\n",
-            inet_ntop(AF_INET6,
-              ((struct sockaddr_in6 *)(a->dstaddr))->sin6_addr.s6_addr,
-               ntop_buf, sizeof ntop_buf));
-        break;
-#endif
-      default:
-        printf("\tAddress Family: Unknown (%d)\n", a->addr->sa_family);
-        break;
-    }
-  }
-  printf("\n");
-}
 
-/* From tcptraceroute */
-#define IPTOSBUFFERS	12
-static char *iptos(bpf_u_int32 in)
-{
-	static char output[IPTOSBUFFERS][3*4+3+1];
-	static short which;
-	u_char *p;
-
-	p = (u_char *)&in;
-	which = (which + 1 == IPTOSBUFFERS ? 0 : which + 1);
-	sprintf(output[which], "%d.%d.%d.%d", p[0], p[1], p[2], p[3]);
-	return output[which];
-}
 
 static void displayMessage(const u_char* data, int size) {
     int i;
@@ -323,4 +267,3 @@ static void displayMessage(const u_char* data, int size) {
     }
     printf("\n");
 }
-
